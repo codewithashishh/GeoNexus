@@ -1,36 +1,35 @@
 import {
-  processDemoOCR,
-  processUploadedDocument
+  runDemoOCR,
+  extractFields,
+  scoreConfidence
 } from "../services/ocrService.js";
 
 import {
-  validateRecord
+  validateRecord as validateData
 } from "../services/validationService.js";
 
 import {
   createRecord,
-  getRecords,
-  getRecordById
+  findAllRecords,
+  findRecordById
 } from "../models/recordModel.js";
 
 export async function processRecord(req, res) {
   try {
-    const file = req.file;
+    const ocr = runDemoOCR(req.file);
 
-    const ocrResult = await processUploadedDocument(file);
+    const record = extractFields(ocr.rawText);
+    const confidence = scoreConfidence();
 
-    const validation = validateRecord(
-      ocrResult.record,
-      ocrResult.confidence
-    );
+    const validation = validateData(record, confidence);
 
     res.json({
       success: true,
-      record: ocrResult.record,
-      confidence: ocrResult.confidence,
-      validation
+      record,
+      confidence,
+      validation,
+      source: ocr.source
     });
-
   } catch (error) {
     console.error("Process record error:", error);
 
@@ -41,46 +40,16 @@ export async function processRecord(req, res) {
   }
 }
 
-export async function processDemoRecord(req, res) {
-  try {
-    const ocrResult = await processDemoOCR();
-
-    const validation = validateRecord(
-      ocrResult.record,
-      ocrResult.confidence
-    );
-
-    res.json({
-      success: true,
-      record: ocrResult.record,
-      confidence: ocrResult.confidence,
-      validation
-    });
-
-  } catch (error) {
-    console.error("Demo processing error:", error);
-
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-}
-
-export async function validateRecordEndpoint(req, res) {
+export async function validateRecord(req, res) {
   try {
     const { record, confidence } = req.body;
 
-    const validation = validateRecord(
-      record,
-      confidence
-    );
+    const validation = validateData(record, confidence);
 
     res.json({
       success: true,
       validation
     });
-
   } catch (error) {
     console.error("Validation error:", error);
 
@@ -93,19 +62,26 @@ export async function validateRecordEndpoint(req, res) {
 
 export async function saveRecord(req, res) {
   try {
-    const { record, confidence, validation } = req.body;
+    const data = req.body;
 
-    const saved = await createRecord({
-      record,
-      confidence,
-      validation
-    });
+    const record = data.record
+      ? {
+          ...data.record,
+          confidence: data.confidence,
+          validation: data.validation,
+          status: data.status || "Verified"
+        }
+      : {
+          ...data,
+          status: data.status || "Verified"
+        };
+
+    const saved = createRecord(record);
 
     res.json({
       success: true,
       record: saved
     });
-
   } catch (error) {
     console.error("Save record error:", error);
 
@@ -116,47 +92,25 @@ export async function saveRecord(req, res) {
   }
 }
 
-export async function listRecords(req, res) {
-  try {
-    const records = await getRecords();
-
-    res.json({
-      success: true,
-      records
-    });
-
-  } catch (error) {
-    console.error("List records error:", error);
-
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
+export async function getRecords(req, res) {
+  res.json({
+    success: true,
+    records: findAllRecords()
+  });
 }
 
 export async function getRecord(req, res) {
-  try {
-    const record = await getRecordById(req.params.id);
+  const record = findRecordById(req.params.id);
 
-    if (!record) {
-      return res.status(404).json({
-        success: false,
-        message: "Record not found"
-      });
-    }
-
-    res.json({
-      success: true,
-      record
-    });
-
-  } catch (error) {
-    console.error("Get record error:", error);
-
-    res.status(500).json({
+  if (!record) {
+    return res.status(404).json({
       success: false,
-      message: error.message
+      message: "Record not found"
     });
   }
+
+  res.json({
+    success: true,
+    record
+  });
 }

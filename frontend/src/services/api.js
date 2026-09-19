@@ -1,7 +1,11 @@
-const API_URL = "http://localhost:5000/api";
+const API_URL = (
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5000/api"
+).replace(/\/$/, "");
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_URL}${path}`, options);
+
   const data = await response.json();
 
   if (!response.ok) {
@@ -27,15 +31,22 @@ export async function processRecord(file) {
 export async function validateRecord(record, confidence) {
   return request("/records/validate", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ record, confidence })
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      record,
+      confidence
+    })
   });
 }
 
 export async function saveRecord(record) {
   return request("/records", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json"
+    },
     body: JSON.stringify(record)
   });
 }
